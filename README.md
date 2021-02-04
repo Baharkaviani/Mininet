@@ -5,7 +5,11 @@
 
 [2nd link](https://github.com/mininet/openflow-tutorial/wiki)
 
+### Helpful links
+
 [mininet install](https://www.youtube.com/watch?v=68Dr0gguVT8)
 
-[How to configure Putty & Xming (on your laptop)] (http://laptops.eng.uci.edu/software-installation/using-linux/how-to-configure-xming-putty)
+[How to configure Putty & Xming on your laptop](http://laptops.eng.uci.edu/software-installation/using-linux/how-to-configure-xming-putty)
+
+[I was just a little foolish :/](https://github.com/mininet/mininet/issues/234)
 
