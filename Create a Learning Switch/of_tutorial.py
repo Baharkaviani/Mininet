@@ -1,3 +1,7 @@
+"""
+modified with: Bahar Kaviani
+"""
+
 # Copyright 2012 James McCauley
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -83,14 +87,18 @@ class Tutorial (object):
     Implement switch-like behavior.
     """
 
-    """ # DELETE THIS LINE TO START WORKING ON THIS (AND THE ONE BELOW!) #
-
-    # Here's some psuedocode to start you off implementing a learning
-    # switch.  You'll need to rewrite it as real Python code.
-
     # Learn the port for the source MAC
-    self.mac_to_port ... <add or update entry>
+    # We have a dictionary of ports in self.mac_to_port
+    # but it's empty at the first. So we need to update it.
 
+    # first we check if the source is new for our dictionary
+    if packet.src not in self.mac_to_port:
+      # then we add it to the dictionary
+      self.mac_to_port[packet.src] = packet_in.in_port
+      # log a message to check
+      log.debug("new packet with source {} just received from port {}.".format(str(packet.src), packet_in.in_port))
+
+    """
     if the port associated with the destination MAC of the packet is known:
       # Send packet out the associated port
       self.resend_packet(packet_in, ...)
@@ -116,7 +124,7 @@ class Tutorial (object):
       # This part looks familiar, right?
       self.resend_packet(packet_in, of.OFPP_ALL)
 
-    """ # DELETE THIS LINE TO START WORKING ON THIS #
+    """
 
   def _handle_PacketIn (self, event):
     """
