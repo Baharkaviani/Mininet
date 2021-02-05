@@ -98,35 +98,47 @@ class Tutorial (object):
       # log a message to check
       log.debug("new packet with source {} just received from port {}.".format(str(packet.src), packet_in.in_port))
 
-    """
-    if the port associated with the destination MAC of the packet is known:
-      # Send packet out the associated port
-      self.resend_packet(packet_in, ...)
+     # If the port associated with the destination MAC of the packet is known,
+    # send packet out the associated port
+    if packet.dst in self.mac_to_port:
+      self.resend_packet(packet_in, self.mac_to_port[packet.dst])
 
-      # Once you have the above working, try pushing a flow entry
-      # instead of resending the packet (comment out the above and
-      # uncomment and complete the below.)
+      # log statements with source/destination/port info
+      log.debug("Installing flow from source to destination with these info:")
+      log.debug("src Addr = {}, Port = {}".format(str(packet.src), packet_in.in_port))
+      log.debug("dst Addr = {}, Port = {}".format(str(packet.dst), self.mac_to_port[packet.dst]))
 
-      log.debug("Installing flow...")
-      # Maybe the log statement should have source/destination/port?
+      # create a flow_mode
+      fm = of.ofp_flow_mod()
 
-      #msg = of.ofp_flow_mod()
-      #
-      ## Set fields to match received packet
-      #msg.match = of.ofp_match.from_packet(packet)
-      #
-      #< Set other fields of flow_mod (timeouts? buffer_id?) >
-      #
-      #< Add an output action, and send -- similar to resend_packet() >
+      # Set fields to match received packet
+      fm.match = of.ofp_match.from_packet(packet)
+      fm.match.dl_src = packet.src
+      fm.match.dl_dst = packet.dst
+
+      # Set other fields of flow_mod
+      fm.idle_timeout = 20
+      fm.hard_timeout = 60
+      fm.buffer_id = packet_in.buffer_id
+      fm.in_port = packet_in.in_port
+
+      # Add an output action
+      action = of.ofp_action_output(port = self.mac_to_port[packet.dst])
+      fm.actions.append(action)
+
+      # Send the flow mod out of the connection
+      self.connection.send(fm)
 
     else:
       # Flood the packet out everything but the input port
-      # This part looks familiar, right?
       self.resend_packet(packet_in, of.OFPP_ALL)
 
-    """
+    # log the dictionary
+    log.debug("dictionary")
+    for i in self.mac_to_port:
+      log.debug(i)
 
-  def _handle_PacketIn (self, event):
+    def _handle_PacketIn (self, event):
     """
     Handles packet in messages from the switch.
     """
