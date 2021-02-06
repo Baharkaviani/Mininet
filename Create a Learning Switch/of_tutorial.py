@@ -98,7 +98,7 @@ class Tutorial (object):
       # log a message to check
       log.debug("new packet with source {} just received from port {}.".format(str(packet.src), packet_in.in_port))
 
-     # If the port associated with the destination MAC of the packet is known,
+    # If the port associated with the destination MAC of the packet is known,
     # send packet out the associated port
     if packet.dst in self.mac_to_port:
       self.resend_packet(packet_in, self.mac_to_port[packet.dst])
@@ -138,7 +138,7 @@ class Tutorial (object):
     for i in self.mac_to_port:
       log.debug(i)
 
-    def _handle_PacketIn (self, event):
+  def _handle_PacketIn (self, event):
     """
     Handles packet in messages from the switch.
     """
