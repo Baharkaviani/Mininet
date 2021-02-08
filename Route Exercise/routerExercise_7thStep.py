@@ -18,6 +18,7 @@ from pox.lib.packet.ipv4 import ipv4
 from pox.lib.packet.icmp import icmp, echo
 from netaddr import *
 from pox.lib.revent import *
+import pox.lib.packet
 
 class Router (object):
   """
@@ -95,7 +96,7 @@ class Router (object):
         arp_reply.protosrc = arp_payload.protodst # IP address of source
         arp_reply.opcode = arp.REPLY # type of arp package
 
-        # make the new pavket to send
+        # make the new packet to send
         newPacket = ethernet()
 
         # set it's fields
@@ -123,9 +124,39 @@ class Router (object):
 
   def handle_ICMP_packets (self, packet, packet_in):
     """
-
+    Controller may receive ICMP echo (ping) requests for the router, which it should respond to.
     """
+    ppacket = packet.payload
 
+    icmp_request_packet = ppacket.payload
+    
+    # make new icmp reply to the received icmp request
+    if icmp_request_packet.type == 8: # (8 type number is for icmp request)
+
+      icmp_echo_reply_packet = icmp()
+      icmp_echo_reply_packet.code = 0
+      icmp_echo_reply_packet.type = 0 # (0 type number is for icmp reply)
+      icmp_echo_reply_packet.payload = icmp_request_packet.payload
+
+      # make ipv4 header
+      ip = ipv4()
+
+      # set it's fields
+      ip.srcip = ppacket.dstip
+      ip.dstip = ppacket.srcip
+      ip.protocol = ipv4.ICMP_PROTOCOL
+      ip.payload = icmp_echo_reply_packet
+
+      # make the new packet to send
+      newPacket = ethernet()
+
+      # set it's fields
+      newPacket.type = ethernet.IP_TYPE
+      newPacket.src = ethernet_frame.dst
+      newPacket.dst = ethernet_frame.src
+      newPacket.payload = ip
+
+      self.resend_packet(newPacket, packet_in.in_port)
 
   def _handle_PacketIn (self, event):
     """
@@ -167,42 +198,73 @@ class Router (object):
           if ip_packet.protocol == ipv4.ICMP_PROTOCOL:
             self.handle_ICMP_packets(packet, packet_in)
 
+        else:
+          # Route the packet to it's port
+          output_port = self.routing_table[dst_network]['Port']
+          # ARP if host MAC Address is not present
+          if dst_ip not in self.arp_table:
+            # Push frame to buffer
+            self.buffer[dst_ip] = {'IP_Packet': ppayload, 'DestinationNetwork': dst_network}
+
+            # Construct ARP Packet
+            arp_request = arp()
+
+            # now set ARP structure fields
+            arp_request.hwdst = EthAddr('00:00:00:00:00:00')
+            RouterInterfaceAddr = self.routing_table[dst_network]['interfaceAddr']
+            arp_request.hwsrc = EthAddr(self.arp_table[RouterInterfaceAddr])
+            arp_request.protodst = IPAddr(dst_ip)
+            arp_request.protosrc = IPAddr(self.routing_table[dst_network]['interfaceAddr'])
+            arp_request.opcode = arp.REQUEST
+
+            # make the new pavket to send
+            newPacket = ethernet()
+
+            # set it's fields
+            newPacket.type = newPacket.ARP_TYPE
+            newPacket.src = EthAddr(self.arp_table[RouterInterfaceAddr])
+            newPacket.dst = EthAddr('FF:FF:FF:FF:FF:FF')
+            newPacket.payload = arp_request
+
+            # send the packet
+            self.resend_packet(newPacket, output_port)
+
+          if dst_ip in self.arp_table:
+            packet.src = EthAddr(self.arp_table[self.routing_table[dst_network]['interfaceAddr']])
+            packet.dst = EthAddr(self.arp_table[dst_ip])
+            self.resend_packet(packet, output_port)
+
+      # message of ICMP destination unreachable
       else:
-        # Route the packet to it's port
-        output_port = self.routing_table[dst_network]['Port']
+        ethernet_frame = packet
+        ppacket = packet.payload
+        icmp_request_packet = ppacket.payload
 
-        # ARP if host MAC Address is not present
-        if dst_ip not in self.arp_table:
-          # Push frame to buffer
-          self.buffer[dst_ip] = {'IP_Packet': ppayload, 'DestinationNetwork': dst_network}
+        # make an icmp packet
+        icmp_echo_reply_packet = icmp()
+        icmp_echo_reply_packet.code = 0
+        icmp_echo_reply_packet.type = 3 # (3 type number is for icmp destination unreachable)
+        icmp_echo_reply_packet.payload = icmp_request_packet.payload
 
-          # Construct ARP Packet
-          arp_request = arp()
+        # make ipv4 header
+        ip = ipv4()
 
-          # now set ARP structure fields
-          arp_request.hwdst = EthAddr('00:00:00:00:00:00')
-          RouterInterfaceAddr = self.routing_table[dst_network]['interfaceAddr']
-          arp_request.hwsrc = EthAddr(self.arp_table[RouterInterfaceAddr])
-          arp_request.protodst = IPAddr(dst_ip)
-          arp_request.protosrc = IPAddr(self.routing_table[dst_network]['interfaceAddr'])
-          arp_request.opcode = arp.REQUEST
+        # set it's fields
+        ip.srcip = ppacket.dstip
+        ip.dstip = ppacket.srcip
+        ip.protocol = ipv4.ICMP_PROTOCOL
+        ip.payload = icmp_echo_reply_packet
 
-          # make the new pavket to send
-          newPacket = ethernet()
+        # make the new packet to send
+        newPacket = ethernet()
 
-          # set it's fields
-          newPacket.type = newPacket.ARP_TYPE
-          newPacket.src = EthAddr(self.arp_table[RouterInterfaceAddr])
-          newPacket.dst = EthAddr('FF:FF:FF:FF:FF:FF')
-          newPacket.payload = arp_request
+        # set it's fields
+        newPacket.type = ethernet.IP_TYPE
+        newPacket.src = ethernet_frame.dst
+        newPacket.dst = ethernet_frame.src
+        newPacket.payload = ip
 
-          # send the packet
-          self.resend_packet(newPacket, output_port)
-
-        if dst_ip in self.arp_table:
-          packet.src = EthAddr(self.arp_table[self.routing_table[dst_network]['interfaceAddr']])
-          packet.dst = EthAddr(self.arp_table[dst_ip])
-          self.resend_packet(packet, output_port)
+        self.resend_packet(newPacket, packet_in.in_port)
 
 
   def isRoutable (dst_ip):
@@ -220,7 +282,6 @@ class Router (object):
 
     log.debug("packet is not routable!")
     return False, null
-
 
 def launch ():
   """
